@@ -38,8 +38,10 @@ class PalmService:
         # 4. 리포트 생성
         report_html = self.interpreter.interpret(features, mounts, metrics)
 
+        #프론트엔드에 전달하는 부분 
         return {
             "lines": lines_json,
+            "mounts": mounts,
             "report": report_html,
             "image_size": {"width": w, "height": h}
         }
@@ -95,4 +97,11 @@ class PalmService:
                 'curv': float(curve_len / (euclidean + 1e-6)),
                 'conf': data['conf']
             }
+
+        if 'head' in features and 'life' in features:
+            # 두 선의 첫 번째 좌표(시작점) 사이의 거리를 구합니다.
+            gap_dist = np.linalg.norm(features['head']['points'][0] - features['life']['points'][0])
+            # 손바닥 너비 대비 비율로 계산하여 interpreter가 이해할 수 있는 숫자로 만듭니다.
+            features['head_life_gap'] = float(gap_dist / metrics['palm_width'])
+            
         return features
