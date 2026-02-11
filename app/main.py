@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api import face_analysis, hand_analysis
+from app.api import face_analysis, hand_analysis
 
 app = FastAPI()
 
