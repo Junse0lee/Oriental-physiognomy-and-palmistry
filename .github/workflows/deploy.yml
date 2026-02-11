@@ -1,0 +1,38 @@
+name: CI/CD Pipeline for Palm/Face Analysis
+
+on:
+  push:
+    branches: [ "main" ] # main 브랜치에 푸시될 때 실행
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # 1. GCP 인증 (Secrets에 저장한 키 사용)
+    - name: Google Auth
+      uses: 'google-github-actions/auth@v1'
+      with:
+        credentials_json: '${{ secrets.GCP_SA_KEY }}'
+
+    # 2. Docker 빌드 및 Artifact Registry 푸시 (이미지 저장소 준비 필요)
+    # *이 부분은 나중에 Artifact Registry 설정을 마치면 더 구체화할 수 있습니다.
+    # 지금은 가장 단순하게 서버에 직접 명령을 내리는 구조로 예시를 듭니다.
+
+    - name: Deploy to GCP VM
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.GCP_VM_IP }}       # VM의 외부 IP
+        username: ${{ secrets.GCP_VM_USER }} # VM 접속 계정 (보통 gcp 계정명)
+        key: ${{ secrets.GCP_SSH_KEY }}      # SSH 개인키
+        script: |
+          # 서버 접속 후 수행할 명령들
+          cd /home/${{ secrets.GCP_VM_USER }}/Back_face_hand
+          git pull origin main
+          sudo docker build -t palm-api .
+          sudo docker stop palm-api-container || true
+          sudo docker rm palm-api-container || true
+          sudo docker run -d --name palm-api-container -p 8000:8000 palm-api
