@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.env
+.git
+.github
+venv/
+.venv/
+
+.DS_Store
+Thumbs.db
+
+*.json
