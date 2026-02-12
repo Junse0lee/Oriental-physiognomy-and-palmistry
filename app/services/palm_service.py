@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 from ultralytics import YOLO
 import mediapipe as mp
-# ✅ 현재 위치(app/services) 기준 임포트
-from services.palm_interpreter import PalmInterpreter
+import random
+from app.services.palm_interpreter import PalmInterpreter
 
 class PalmService:
     def __init__(self, model_path: str):
@@ -38,7 +38,6 @@ class PalmService:
         # 4. 리포트 생성
         report_html = self.interpreter.interpret(features, mounts, metrics)
 
-        #프론트엔드에 전달하는 부분 
         return {
             "lines": lines_json,
             "mounts": mounts,
@@ -52,14 +51,23 @@ class PalmService:
         if mp_res.multi_hand_landmarks:
             lm = mp_res.multi_hand_landmarks[0].landmark
             def p(idx): return np.array([int(lm[idx].x * w), int(lm[idx].y * h)])
+            
+            # 기준 코드에서 사용하는 metrics 산출
             metrics['height'] = float(np.linalg.norm(p(12) - p(0)))
             metrics['palm_width'] = float(np.linalg.norm(p(5) - p(17)))
+            
+            # 인터프리터가 사용하는 언덕(Mounts) 좌표
             mounts['地'] = p(0).tolist()
             mounts['목성'] = p(5).tolist()
             mounts['토성'] = p(9).tolist()
             mounts['태양'] = p(13).tolist()
             mounts['수성'] = p(17).tolist()
             mounts['火'] = ((p(17) + p(0)) * 0.5).tolist()
+            
+            # [수정] 인터프리터가 dest 분석 시 사용하는 제2화성구 추가
+            mars_2_pos = (p(17) * 0.7 + p(0) * 0.3)
+            mounts['제2화성'] = mars_2_pos.tolist()
+            
         return mounts, metrics
 
     def _process_yolo_results(self, results):
@@ -89,19 +97,27 @@ class PalmService:
         for cls_id, data in best_lines.items():
             name = self.line_config[cls_id]['name']
             pts = data['points']
+            if len(pts) < 2: continue
+            
+            # 길이 및 곡률 계산
             curve_len = np.sum(np.sqrt(np.sum(np.diff(pts, axis=0)**2, axis=1)))
             euclidean = np.linalg.norm(pts[-1] - pts[0])
+            
+            # [수정] 인터프리터 19금 파트에서 사용하는 slope 계산
+            vec = pts[-1] - pts[0]
+            slope = vec[1] / (vec[0] + 1e-6)
+            
             features[name] = {
                 'points': pts,
                 'len_ratio': float(curve_len / metrics['height']),
                 'curv': float(curve_len / (euclidean + 1e-6)),
-                'conf': data['conf']
+                'conf': data['conf'],
+                'slope': float(slope)
             }
 
+        # [수정] 생명선-두뇌선 간격 계산 (interpret 메서드 필수 값)
         if 'head' in features and 'life' in features:
-            # 두 선의 첫 번째 좌표(시작점) 사이의 거리를 구합니다.
             gap_dist = np.linalg.norm(features['head']['points'][0] - features['life']['points'][0])
-            # 손바닥 너비 대비 비율로 계산하여 interpreter가 이해할 수 있는 숫자로 만듭니다.
             features['head_life_gap'] = float(gap_dist / metrics['palm_width'])
             
         return features
